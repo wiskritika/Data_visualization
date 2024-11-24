@@ -1,0 +1,392 @@
+---
+title: "bone_marrow_assignment"
+author: "kritika shrestha"
+date: "2024-09-26"
+output: html_document
+---
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tidyverse)
+library(caret)
+library(readr)
+library(plotly)
+library(GGally)
+library(vcd)
+library(beeswarm)
+```
+
+
+
+
+
+
+```{r}
+data <- read.csv("bone-marrow.csv")
+head(data)
+```
+
+
+
+#view the structure of the dataset
+```{r}
+str(data)
+```
+```{r}
+head(data)
+```
+```{r}
+# Checking for missing values
+colSums(is.na(data))
+```
+
+```{r}
+# Impute missing values (usig median For numeric columns)
+data$RecipientRh[is.na(data$RecipientRh)] <- median(data$RecipientRh, na.rm = TRUE)
+data$CD3dCD34[is.na(data$CD3dCD34)] <- median(data$CD3dCD34, na.rm = TRUE)
+data$CD3dkgx10d8[is.na(data$CD3dkgx10d8)] <- median(data$CD3dkgx10d8, na.rm = TRUE)
+data$Rbodymass[is.na(data$Rbodymass)] <- median(data$Rbodymass, na.rm = TRUE)
+```
+
+
+
+```{r}
+# For categorical columns, use the mode (most frequent value)
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+data$RecipientABO[is.na(data$RecipientABO)] <- Mode(data$RecipientABO)
+data$ABOmatch[is.na(data$ABOmatch)] <- Mode(data$ABOmatch)
+data$CMVstatus[is.na(data$CMVstatus)] <- Mode(data$CMVstatus)
+data$DonorCMV[is.na(data$DonorCMV)] <- Mode(data$DonorCMV)
+data$RecipientCMV[is.na(data$RecipientCMV)] <- Mode(data$RecipientCMV)
+data$Antigen[is.na(data$Antigen)] <- Mode(data$Antigen)
+data$Alel[is.na(data$Alel)] <- Mode(data$Alel)
+data$extcGvHD[is.na(data$extcGvHD)] <- Mode(data$extcGvHD)
+```
+
+
+```{r}
+colSums(is.na(data))
+```
+
+
+
+```{r}
+colnames(data)
+```
+
+Distribution (Survival Status)
+```{r}
+# Bar plot for survival status distribution
+p <-ggplot(data, aes(x = as.factor(survival_status))) +
+  geom_bar(fill = "lightblue", color = "black") +
+  ggtitle("Distribution of Survival Status") +
+  xlab("Survival Status (0 = No, 1 = Yes)") +
+  ylab("Count")
+ggplotly(p)
+
+
+
+
+```
+
+ Distribution of Donor Age
+```{r}
+# Donor Age Histogram
+p<-ggplot(data, aes(x = Donorage)) +
+  geom_histogram(binwidth = 5, fill = "skyblue", color = "black") +
+  ggtitle("Distribution of Donor Age") +
+  xlab("Donor Age") +
+  ylab("Frequency")
+ggplotly(p)
+```
+
+
+Distribution of Survival Time
+```{r}
+# Survival Time Histogram
+p <-ggplot(data, aes(x = survival_time)) +
+  geom_histogram(binwidth = 100, fill = "salmon", color = "black") +
+  ggtitle("Distribution of Survival Time") +
+  xlab("Survival Time (days)") +
+  ylab("Frequency")
+ggplotly(p)
+```
+
+
+Comparing Variables
+```{r}
+# Box plot to compare survival time by gender match
+p<-ggplot(data, aes(x = as.factor(Gendermatch), y = survival_time)) +
+  geom_boxplot(fill = c("lightblue", "lightgreen")) +
+  ggtitle("Survival Time by Gender Match") +
+  xlab("Gender Match (0 = Mismatch, 1 = Match)") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Impact of Stem Cell Source on Survival Time
+```{r}
+# Box plot for survival time by stem cell source
+p<-ggplot(data, aes(x = as.factor(Stemcellsource), y = survival_time)) +
+  geom_boxplot(fill = c("orange", "lightblue")) +
+  ggtitle("Survival Time by Stem Cell Source") +
+  xlab("Stem Cell Source") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+
+```
+
+
+
+
+Relationships Between Variables
+```{r}
+# Scatter plot for Donor Age vs. Survival Time
+p<-ggplot(data, aes(x = Donorage, y = survival_time)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Donor Age vs. Survival Time") +
+  xlab("Donor Age") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Recipient Body Mass vs. Survival Time
+```{r}
+# Scatter plot for Body Mass vs. Survival Time
+p<-ggplot(data, aes(x = Rbodymass, y = survival_time)) +
+  geom_point(color = "green", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Recipient Body Mass vs. Survival Time") +
+  xlab("Body Mass (kg)") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Stacked and Grouped Bar Plots
+```{r}
+# Stacked bar plot for ABO Matching vs. Survival Status
+p<-ggplot(data, aes(x = as.factor(ABOmatch), fill = as.factor(survival_status))) +
+  geom_bar(position = "fill") +
+  ggtitle("ABO Match vs. Survival Status") +
+  xlab("ABO Match (0 = No, 1 = Yes)") +
+  ylab("Proportion of Survival Status") +
+  scale_fill_manual(values = c("red", "blue"), name = "Survival Status")
+ggplotly(p)
+```
+
+
+
+Heatmap for Correlations Between Numeric Variables
+```{r}
+# Load library for heatmap
+library(corrplot)
+
+# Correlation matrix for numeric columns
+numeric_cols <- data %>% select(Donorage, survival_time, Rbodymass, CD34kgx10d6, CD3dCD34, CD3dkgx10d8)
+
+# Create correlation matrix
+corr_matrix <- cor(numeric_cols, use = "complete.obs")
+
+# Plot the heatmap
+corrplot(corr_matrix, method = "color", addCoef.col = "black", tl.col = "black", tl.cex = 0.8)
+```
+
+
+Time to aGvHD (Acute Graft-versus-Host Disease) and Survival Time
+```{r}
+# Scatter plot for time to aGvHD vs. Survival Time
+p<-ggplot(data, aes(x = time_to_aGvHD_III_IV, y = survival_time)) +
+  geom_point(color = "purple", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Time to aGvHD vs. Survival Time") +
+  xlab("Time to aGvHD (days)") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Survival Status vs. Donor Age
+```{r}
+# Box plot for Donor Age vs Survival Status
+p<-ggplot(data, aes(x = as.factor(survival_status), y = Donorage)) +
+  geom_boxplot(fill = c("lightpink", "lightgreen")) +
+  ggtitle("Donor Age vs. Survival Status") +
+  xlab("Survival Status (0 = No, 1 = Yes)") +
+  ylab("Donor Age")
+ggplotly(p)
+```
+
+
+ Survival Status vs. Gender Match
+```{r}
+# Stacked bar plot for Gender Match vs Survival Status
+p<-ggplot(data, aes(x = as.factor(Gendermatch), fill = as.factor(survival_status))) +
+  geom_bar(position = "fill") +
+  ggtitle("Gender Match vs. Survival Status") +
+  xlab("Gender Match (0 = Mismatch, 1 = Match)") +
+  ylab("Proportion of Survival Status") +
+  scale_fill_manual(values = c("red", "blue"), name = "Survival Status")
+ggplotly(p)
+```
+ 
+ 
+Survival Status vs. Recipient Body Mass
+```{r}
+# Box plot for Body Mass vs Survival Status
+p<-ggplot(data, aes(x = as.factor(survival_status), y = Rbodymass)) +
+  geom_boxplot(fill = c("lightblue", "lightgreen")) +
+  ggtitle("Body Mass vs. Survival Status") +
+  xlab("Survival Status (0 = No, 1 = Yes)") +
+  ylab("Recipient Body Mass (kg)")
+ggplotly(p)
+```
+
+ 
+ Exploring the Effect of CD34 Count on Survival Time
+```{r}
+# Scatter plot for CD34kgx10d6 vs Survival Time
+p<-ggplot(data, aes(x = CD34kgx10d6, y = survival_time)) +
+  geom_point(color = "purple", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("CD34 Count vs. Survival Time") +
+  xlab("CD34 Count (kgx10d6)") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Donor ABO and Survival Status
+```{r}
+# Stacked bar plot for Donor ABO vs Survival Status
+p<-ggplot(data, aes(x = as.factor(DonorABO), fill = as.factor(survival_status))) +
+  geom_bar(position = "fill") +
+  ggtitle("Donor ABO vs. Survival Status") +
+  xlab("Donor ABO Blood Type") +
+  ylab("Proportion of Survival Status") +
+  scale_fill_manual(values = c("red", "blue"), name = "Survival Status")
+ggplotly(p)
+```
+
+
+
+Donor-Recipient Age Difference and Survival Status
+```{r}
+# Calculate Donor-Recipient age difference
+data$age_diff <- abs(data$Donorage - data$Recipientage)
+
+# Scatter plot for Age Difference vs Survival Time
+p<-ggplot(data, aes(x = age_diff, y = survival_time, color = as.factor(survival_status))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("Age Difference vs Survival Time") +
+  xlab("Age Difference (Donor - Recipient)") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Exploring Disease Group Impact on Survival
+```{r}
+# Violin plot for survival time by Disease group
+p<-ggplot(data, aes(x = as.factor(Diseasegroup), y = survival_time)) +
+  geom_violin(trim = FALSE, fill = "lightblue") +
+  geom_boxplot(width = 0.1, fill = "white") +  # Adds a mini box plot inside the violin
+  ggtitle("Survival Time by Disease Group") +
+  xlab("Disease Group") +
+  ylab("Survival Time (days)")
+ggplotly(p)
+```
+
+
+Survival Status by GvHD (Graft vs Host Disease) Incidence
+```{r}
+# Stacked bar plot for GvHD vs Survival Status
+p<-ggplot(data, aes(x = as.factor(aGvHDIIIIV), fill = as.factor(survival_status))) +
+  geom_bar(position = "fill") +
+  ggtitle("GvHD (Grade III-IV) vs. Survival Status") +
+  xlab("GvHD Incidence (0 = No, 1 = Yes)") +
+  ylab("Proportion of Survival Status") +
+  scale_fill_manual(values = c("red", "blue"), name = "Survival Status")
+ggplotly(p)
+```
+
+
+```{r}
+# Stacked bar plot for Donor CMV vs Recipient CMV and Survival Status
+p<-ggplot(data, aes(x = as.factor(DonorCMV), fill = as.factor(RecipientCMV))) +
+  geom_bar(position = "fill") +
+  ggtitle("Donor CMV vs Recipient CMV and Survival Status") +
+  xlab("Donor CMV Status") +
+  ylab("Proportion of Survival Status") +
+  scale_fill_manual(values = c("red", "blue"), name = "Recipient CMV Status")
+ggplotly(p)
+```
+
+
+Survival Status vs. CMV and HLA Mismatches    
+```{r}
+# Stacked bar plot for CMV Status vs HLA Mismatch and Survival Status
+p<-ggplot(data, aes(x = as.factor(CMVstatus), fill = as.factor(HLAmismatch))) +
+  geom_bar(position = "fill") +
+  ggtitle("CMV Status vs HLA Mismatch and Survival Status") +
+  xlab("CMV Status") +
+  ylab("Proportion of Survival Status") +
+  scale_fill_manual(values = c("red", "blue"), name = "HLA Mismatch Count")
+ggplotly(p)
+```
+
+
+
+Survival Time Distribution by Multiple Factors
+```{r}
+# Faceted plot for survival time by multiple factors
+p<-ggplot(data, aes(x = survival_time)) +
+  geom_histogram(binwidth = 100, fill = "steelblue", color = "black") +
+  facet_grid(Gendermatch ~ ABOmatch) +
+  ggtitle("Survival Time by Gender Match and ABO Match") +
+  xlab("Survival Time (days)") +
+  ylab("Count")
+ggplotly(p)
+```
+
+
+
+
+
+Density Plot of Survival Time by Categorical Variables
+```{r}
+# Density plot for Survival Time by Gendermatch
+p <-ggplot(data, aes(x = survival_time, fill = as.factor(Gendermatch))) +
+  geom_density(alpha = 0.5) +
+  ggtitle("Density Plot of Survival Time by Gender Match") +
+  xlab("Survival Time (days)") +
+  ylab("Density") +
+  scale_fill_manual(values = c("red", "blue"), name = "Gender Match")
+ggplotly(p)
+```
+
+
+Bubble Plot
+```{r}
+# Bubble plot for Donor Age, Rbodymass, and CD34 count with bubble size as survival time
+p<-ggplot(data, aes(x = Donorage, y = Rbodymass, size = survival_time, color = as.factor(survival_status))) +
+  geom_point(alpha = 0.7) +
+  scale_size_continuous(range = c(1, 10)) +
+  ggtitle("Bubble Plot: Donor Age, Body Mass, and Survival Time") +
+  xlab("Donor Age") +
+  ylab("Recipient Body Mass")
+ggplotly(p)
+```
+
+
